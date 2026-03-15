@@ -69,8 +69,8 @@ WSMExporter.register()
 # From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
 SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
 # tinySA typical phase noise
-PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
-PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
+PN_AT_10MHZ = np.loadtxt(os.path.join(basedir, "10_baseline.txt"))
+PN_AT_1152MHZ = np.loadtxt(os.path.join(basedir, "1152_baseline.txt"))
 
 # TCP client configuration:
 # Set TINYSA_TCP to "host:port" (or just "host") to enable TCP mode.
@@ -2175,7 +2175,8 @@ app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.2.4')
 
-QtTSA = loader.load("spectrum.ui", None)
+_spectrum_ui = app_dir('spectrum.ui') or os.path.join(basedir, 'spectrum.ui')
+QtTSA = loader.load(_spectrum_ui, None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
 settings = CustomDialogue(app_dir('settings.ui'))
 filebrowse = CustomDialogue(app_dir('filebrowse.ui'))

@@ -32,6 +32,13 @@ python3 src/tinysa_tcp_server.py --host 0.0.0.0 --port 5000
 ```
 
 Client (Windows, QtTinySA GUI):
+PowerShell:
+```
+$env:TINYSA_TCP="SERVER_IP:5000"
+python src\\QtTinySA.py
+```
+
+CMD:
 ```
 set TINYSA_TCP=SERVER_IP:5000
 python src\\QtTinySA.py
