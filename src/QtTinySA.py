@@ -48,6 +48,7 @@ from io import BytesIO
 from QtTinyExporters import WWBExporter, WSMExporter
 
 from QtTinySAGraphs import SurfaceGraph
+from tcp_serial import TcpSerial
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -70,6 +71,26 @@ SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 
 # tinySA typical phase noise
 PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
 PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
+
+# TCP client configuration:
+# Set TINYSA_TCP to "host:port" (or just "host") to enable TCP mode.
+# Optional: TINYSA_TCP_PORT overrides the port if not provided in TINYSA_TCP.
+def parse_tcp_target():
+    raw = os.environ.get("TINYSA_TCP", "").strip()
+    host = os.environ.get("TINYSA_TCP_HOST", "").strip()
+    port = os.environ.get("TINYSA_TCP_PORT", "").strip()
+    if raw:
+        if ":" in raw:
+            host, port = raw.rsplit(":", 1)
+        else:
+            host = raw
+    if not host:
+        return None
+    try:
+        port_val = int(port) if port else 5000
+    except ValueError:
+        port_val = 5000
+    return host, port_val
 
 # classes ##############################################################################
 
@@ -117,8 +138,13 @@ class Analyser:
         self.maxF = 6000
         self.memF = BytesIO()
         self.ports = []
+        self.tcp_target = parse_tcp_target()
+        self.tcp_mode = self.tcp_target is not None
 
     def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
+        if self.tcp_mode:
+            self.openTcp()
+            return
         # Get tinySA comport using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
@@ -137,6 +163,19 @@ class Analyser:
             settings.ui.deviceBox.setCurrentIndex(0)
             popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'Ok', 'Info')
             usbCheck.stop()
+
+    def openTcp(self):
+        if self.usb:
+            return
+        host, port = self.tcp_target
+        try:
+            self.usb = TcpSerial(host, port)
+            logging.info(f'TCP connected to {host}:{port}')
+        except (serial.SerialException, OSError) as exc:
+            logging.info(f'TCP connection failed: {exc}')
+            self.usb = None
+            return
+        self.testTcp(host, port)
 
     def testPort(self, port):  # tests comms and initialises tinySA if found
         try:
@@ -165,6 +204,27 @@ class Analyser:
             else:
                 logging.info(f'firmware {firmware} for {self.identify(port)} on {port.device} is not a tinySA')
 
+    def testTcp(self, host, port):
+        if not self.usb:
+            return
+        for i in range(4):  # try 4 times to communicate with tinySA over TCP
+            firmware = self.version()
+            if firmware[:6] == 'tinySA':
+                logging.info(f'TCP {host}:{port} test {i} : {firmware[:16]}')
+                break
+            else:
+                time.sleep(1)
+        self.firmware = firmware.replace('_', '-').split('-')
+        if firmware[:6] == 'tinySA':
+            if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+                logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+            if self.firmware[1][0] == "v":
+                self.setForDevice(self.firmware)
+            else:
+                logging.info(f'TCP test found unexpected firmware {firmware}')
+        else:
+            logging.info(f'TCP firmware response is not a tinySA: {firmware}')
+
     def identify(self, port):
         # Windows returns no information to pySerial list_ports.comports()
         if system() == 'Linux' or system() == 'Darwin':
@@ -179,6 +239,12 @@ class Analyser:
             self.usb = None
 
     def isConnected(self):
+        if self.tcp_mode:
+            if self.usb is None:
+                self.openTcp()
+            else:
+                usbCheck.stop()
+            return
         # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
         if len(self.ports) == 0:
             self.openPort()

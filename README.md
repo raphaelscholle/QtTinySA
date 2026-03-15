@@ -22,3 +22,19 @@ I learnt a lot about how to create Python GUIs from Martin Fitzpatrick's excelle
 https://www.pythonguis.com/books/
   
 The GUI appearence may change significantly due to development.
+
+## TCP client/server (Linux server, Windows client)
+You can run the TinySA USB connection on a Linux host and connect the Windows GUI over TCP.
+
+Server (Linux, connected to TinySA via USB):
+```bash
+python3 src/tinysa_tcp_server.py --host 0.0.0.0 --port 5000
+```
+
+Client (Windows, QtTinySA GUI):
+```
+set TINYSA_TCP=SERVER_IP:5000
+python src\\QtTinySA.py
+```
+
+If you omit the port in `TINYSA_TCP`, it defaults to `5000`. Ensure the server port is reachable through any firewall.
